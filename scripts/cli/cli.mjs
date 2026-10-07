@@ -38,6 +38,7 @@ const BIN_DIR = path.join(ROOT_DIR, "bin");
 
 const PLATFORM_CHOICES = [
   { label: "windows-x86_64", goos: "windows", goarch: "amd64" },
+  { label: "windows-arm64", goos: "windows", goarch: "arm64" },
   { label: "linux-x86_64", goos: "linux", goarch: "amd64" },
   { label: "macos-x86_64", goos: "darwin", goarch: "amd64" },
   { label: "macos-arm64", goos: "darwin", goarch: "arm64" },
@@ -52,6 +53,15 @@ const FF_BINARY_DOWNLOADS = new Map([
       ffmpegSHA256: "4044b3924c977ad31229d504c5d5b8685f9553124fbaff6e9c99048b42830341",
       ffprobe: "https://github.com/shaka-project/static-ffmpeg-binaries/releases/download/n8.1.2-1/ffprobe-win-x64.exe",
       ffprobeSHA256: "fc37ca23d31ee08bb8f7e108edf3822f6ef3efc1a8d306bbe0b779190230710b",
+    },
+  ],
+  [
+    "windows-arm64",
+    {
+      ffmpeg: "https://github.com/fhscey/static-ffmpeg-binaries/releases/download/n8.1.2-1/ffmpeg-win-arm64.exe",
+      ffmpegSHA256: "9954bcde84aaae94ac7950ce9bd5aee301af22b6d57afcc3226f305fa1529ed0",
+      ffprobe: "https://github.com/fhscey/static-ffmpeg-binaries/releases/download/n8.1.2-1/ffprobe-win-arm64.exe",
+      ffprobeSHA256: "ef12f82b75a8475285574018f9a9e30827389b6b334b5c00623536c1129ebbee",
     },
   ],
   [
@@ -452,12 +462,15 @@ async function syncBundledMpvToInternal(choice) {
 
 async function buildBackendRelease(choice, outDir) {
   if (choice.goos === "windows" && !process.env.CC) {
-    const hasMingw = await commandExists("x86_64-w64-mingw32-gcc");
-    if (hasMingw) {
-      process.env.CC = "x86_64-w64-mingw32-gcc";
+    const compiler = choice.goarch === "arm64"
+      ? "aarch64-w64-mingw32-clang"
+      : "x86_64-w64-mingw32-gcc";
+    const hasCompiler = await commandExists(compiler);
+    if (hasCompiler) {
+      process.env.CC = compiler;
     } else {
       throw new Error(
-        "windows 构建需要 MinGW 工具链，请设置 CC 或安装 x86_64-w64-mingw32-gcc",
+        `windows/${choice.goarch} 构建需要交叉编译工具链，请设置 CC 或安装 ${compiler}`,
       );
     }
   }
@@ -601,7 +614,7 @@ async function runRelease(choice, version) {
     return;
   }
   const bundledMpvOk = await isBundledMpvReady(choice);
-  const requireBundledMpv = true;
+  const requireBundledMpv = !(choice.goos === "windows" && choice.goarch === "arm64");
   if (requireBundledMpv && !bundledMpvOk) {
     console.error(
       `[release] bin/${choice.label} 缺少 mpv，请先选择 “download-dependencies” 下载。`,

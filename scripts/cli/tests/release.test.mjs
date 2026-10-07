@@ -11,7 +11,7 @@ import vm from "node:vm";
 // expensive builds/downloads so the tests do not need platform binaries.
 const source = fs.readFileSync(new URL("../cli.mjs", import.meta.url), "utf8")
   .replace(/^#!.*\n/, "")
-  .replace(/^import .*;\n/gm, "")
+  .replace(/^import .*;\r?\n/gm, "")
   .split("\nmain().catch(")[0];
 const hasZip = spawnSync("zip", ["-v"]).status === 0 &&
   spawnSync("unzip", ["-v"]).status === 0;
@@ -54,10 +54,17 @@ function releaseContext(t, goos) {
   return context;
 }
 
-for (const goos of ["windows", "linux", "darwin"]) {
-  test(`${goos} release selects the correct executable subsystem`, async (t) => {
+for (const [goos, goarch, compiler] of [
+  ["windows", "amd64", "x86_64-w64-mingw32-gcc"],
+  ["windows", "arm64", "aarch64-w64-mingw32-clang"],
+  ["linux", "amd64", undefined],
+  ["darwin", "amd64", undefined],
+]) {
+  test(`${goos}/${goarch} release selects the correct executable subsystem`, async (t) => {
     const ctx = releaseContext(t, goos);
+    vm.runInContext(`choice = PLATFORM_CHOICES.find(p => p.goos === "${goos}" && p.goarch === "${goarch}");`, ctx);
     vm.runInContext(`
+      delete process.env.CC;
       commandExists = async () => true;
       runCommand = async (command, args, options) => calls.push({ command, args, options });
     `, ctx);
@@ -69,10 +76,20 @@ for (const goos of ["windows", "linux", "darwin"]) {
     assert.match(ldflags, /-X main\.buildMode=release/);
     assert.equal(ldflags.includes("-H windowsgui"), goos === "windows");
     assert.equal(options.env.GOOS, goos);
+    assert.equal(options.env.GOARCH, goarch);
     assert.equal(options.env.CGO_ENABLED, "1");
+    if (compiler) assert.equal(ctx.process.env.CC, compiler);
     assert.equal(args[args.indexOf("-o") + 1], path.join(ctx.outDir, goos === "windows" ? "javboss.exe" : "javboss"));
   });
 }
+
+test("Windows ARM64 release can omit an unavailable mpv bundle", async (t) => {
+  const ctx = releaseContext(t, "windows");
+  vm.runInContext(`choice = PLATFORM_CHOICES.find(p => p.label === "windows-arm64");`, ctx);
+  vm.runInContext(`isBundledMpvReady = async () => false;`, ctx);
+  await ctx.cli.runRelease(ctx.choice, "test");
+  assert.equal(ctx.process.exitCode, 0);
+});
 
 for (const goos of ["windows", "linux"]) {
   test(`${goos} releases omit FFmpeg even when rebuilding an old ZIP`, { skip: !hasZip }, async (t) => {
