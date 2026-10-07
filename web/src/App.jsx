@@ -1,5 +1,5 @@
 import { useShallow } from 'zustand/react/shallow'
-import { useStore } from '@/store'
+import { useStore, videoSelectionKey } from '@/store'
 import { useState, useEffect, useCallback } from 'react'
 import useApplicationData from '@/query/useApplicationData'
 import useLibraryRoute from '@/navigation/useLibraryRoute'
@@ -59,6 +59,9 @@ import Toast from '@/shared/ui/Toast'
 export default function App() {
   const {
     config,
+    selectionPageAvailable,
+    selectionAllAvailable,
+    selectionLoading,
     tags,
     selectedVideoIds,
     loadTags,
@@ -89,6 +92,21 @@ export default function App() {
   } = useStore(
     useShallow((s) => ({
       config: s.config,
+      selectionPageAvailable:
+        s.viewMode === 'jav'
+          ? s.javItems.some((item) => Number(item?.id) > 0)
+          : s.videos.some((item) => videoSelectionKey(item)),
+      selectionAllAvailable:
+        Number(
+          s.viewMode === 'jav'
+            ? s.javRandomMode
+              ? s.javItems.length
+              : s.javTotal
+            : s.randomMode
+              ? s.videos.length
+              : s.total
+        ) > 0,
+      selectionLoading: s.viewMode === 'jav' ? s.javLoading : s.loading,
       tags: s.tags,
       selectedVideoIds: s.selectedVideoIds,
       loadTags: s.loadTags,
@@ -313,6 +331,8 @@ export default function App() {
     handleSelectionJavTagChoiceToggle,
     handleApplySelectionJavTags,
     handleSelectVideoPage,
+    handleDeselectVideoPage,
+    handleDeselectAllVideos,
     handleSelectAllVideos,
     handlePlayVideoPage,
     handlePlayAllVideos,
@@ -602,6 +622,18 @@ export default function App() {
         }
         onOpenSelectionOps={isJavMode ? javSelection.openOps : () => setSelectionOpsOpen(true)}
         onClearSelection={isJavMode ? javSelection.clear : clearSelection}
+        onSelectPage={isJavMode ? javSelection.selectPage : handleSelectVideoPage}
+        onDeselectPage={isJavMode ? javSelection.deselectPage : handleDeselectVideoPage}
+        onSelectAll={isJavMode ? javSelection.selectAll : handleSelectAllVideos}
+        onDeselectAll={isJavMode ? javSelection.deselectAll : handleDeselectAllVideos}
+        selectionPageAvailable={selectionPageAvailable}
+        selectionAllAvailable={selectionAllAvailable}
+        selectionBusy={
+          selectionLoading ||
+          (isJavMode
+            ? javSelection.busy
+            : videoBulkActionBusy || selectionPlaying || selectionDeleting)
+        }
         onRandomClick={
           !isJavMode ? handleVideoRandomClick : javTab === 'list' ? handleJavRandomClick : null
         }
@@ -647,8 +679,6 @@ export default function App() {
                 hydrated={hydrated}
                 configLoaded={configLoaded}
                 buildVideoUrl={buildVideoUrl}
-                handleSelectAllVideos={handleSelectAllVideos}
-                handleSelectVideoPage={handleSelectVideoPage}
                 handlePlayVideoPage={handlePlayVideoPage}
                 handlePlayAllVideos={handlePlayAllVideos}
                 videoBulkActionBusy={videoBulkActionBusy}
@@ -765,9 +795,9 @@ export default function App() {
         currentIndex={playerIndex}
         onSelectVideo={selectPlayerVideo}
         startTime={playerStartTime}
+        resumePlayback={configFlag(config?.browser_player_resume_playback, true)}
         hotkeys={config?.player_hotkeys}
         showHotkeyHint={configFlag(config?.browser_player_show_hotkey_hint, true)}
-        onPlaybackError={showCenterToast}
         onClose={closePlayer}
       />
 
@@ -855,11 +885,11 @@ export default function App() {
                 ? zh('选择使用MPV播放器播放的文件', 'Choose a file to play with MPV player')
                 : alternatePlayer === 'system'
                   ? zh('选择使用系统播放器播放的文件', 'Choose a file to play with system player')
-                  : zh('选择使用浏览器播放的文件', 'Choose a file to play in the browser')
+                  : zh('选择使用网页播放器播放的文件', 'Choose a file to play in the web player')
               : defaultPlayer === 'system'
                 ? zh('选择使用系统播放器播放的文件', 'Choose a file to play with system player')
                 : defaultPlayer === 'browser'
-                  ? zh('选择使用浏览器播放的文件', 'Choose a file to play in the browser')
+                  ? zh('选择使用网页播放器播放的文件', 'Choose a file to play in the web player')
                   : zh('选择使用MPV播放器播放的文件', 'Choose a file to play with MPV player')
         }
         onClose={closeLocationPicker}

@@ -59,34 +59,61 @@ export function selectPlaybackSource(info, media) {
 
 // Keep a single Video.js instance through fallback. Register error handling
 // before setting src, since source selection itself may fail asynchronously.
-export function startBrowserPlayback(player, source, fallback, startTime, onError) {
+export function startBrowserPlayback(
+  player,
+  source,
+  fallback,
+  startTime,
+  onError,
+  { resume = false, onPosition, onEnded, beforeTranscode } = {}
+) {
   let activeSource = source
   let position = Math.max(0, Number(startTime) || 0)
   let shouldPlay = true
   let playbackRate = player.playbackRate()
   let restorePosition = null
+  let metadataLoaded = false
+  let ended = false
+  let stopped = false
+  let failed = false
 
   const rememberPosition = () => {
-    if (!restorePosition) {
+    if (!restorePosition && metadataLoaded && !ended) {
       const current = player.currentTime()
-      if (Number.isFinite(current)) position = current
+      if (Number.isFinite(current)) {
+        position = current
+        onPosition?.(position, player.duration())
+      }
     }
   }
   const rememberPlay = () => {
+    ended = false
     shouldPlay = true
   }
   const rememberPause = () => {
+    rememberPosition()
     if (!player.error() && !restorePosition) shouldPlay = false
   }
   const rememberRate = () => {
     if (!restorePosition) playbackRate = player.playbackRate()
   }
-  const load = (nextSource) => {
+  const handleEnded = () => {
+    ended = true
+    onEnded?.()
+  }
+  const loadSource = (nextSource) => {
     if (restorePosition) player.off('loadedmetadata', restorePosition)
     restorePosition = () => {
       restorePosition = null
+      if (stopped || failed) return
       const duration = player.duration()
-      const target = Number.isFinite(duration) ? Math.min(position, duration) : position
+      const target = Number.isFinite(duration)
+        ? resume && !metadataLoaded && position >= duration
+          ? 0
+          : Math.min(position, duration)
+        : position
+      metadataLoaded = true
+      position = target
       if (target > 0) player.currentTime(target)
       player.playbackRate(playbackRate)
       if (shouldPlay) {
@@ -97,7 +124,31 @@ export function startBrowserPlayback(player, source, fallback, startTime, onErro
     player.one('loadedmetadata', restorePosition)
     player.src({ src: nextSource.src, type: nextSource.mime_type })
   }
+  const load = (nextSource) => {
+    if (nextSource.kind !== 'hls' || !beforeTranscode) {
+      loadSource(nextSource)
+      return
+    }
+    // Check before handing HLS to Video.js, which otherwise retries failed
+    // segment requests without exposing the server's missing-tool message.
+    Promise.resolve()
+      .then(() => {
+        if (!stopped) return beforeTranscode()
+      })
+      .then(() => {
+        if (!stopped) loadSource(nextSource)
+      })
+      .catch((error) => {
+        if (stopped) return
+        failed = true
+        player.autoplay(false)
+        player.pause()
+        player.error({ code: 4, message: error.message })
+        onError(error)
+      })
+  }
   const handleError = () => {
+    if (stopped || failed) return
     const error = player.error()
     if (!error) return
     if (activeSource.kind === 'direct' && fallback && [3, 4].includes(error.code)) {
@@ -110,6 +161,7 @@ export function startBrowserPlayback(player, source, fallback, startTime, onErro
     onError(error)
   }
 
+  player.on('ended', handleEnded)
   player.on('error', handleError)
   player.on('timeupdate', rememberPosition)
   player.on('seeking', rememberPosition)
@@ -119,6 +171,9 @@ export function startBrowserPlayback(player, source, fallback, startTime, onErro
   load(source)
 
   return () => {
+    stopped = true
+    rememberPosition()
+    player.off('ended', handleEnded)
     player.off('error', handleError)
     player.off('timeupdate', rememberPosition)
     player.off('seeking', rememberPosition)

@@ -2,7 +2,7 @@ import SwapVertIcon from '@mui/icons-material/SwapVert'
 import { Popover } from '@mui/material'
 import { useState } from 'react'
 import JavGrid from '@/features/jav/components/JavGrid'
-import BulkActionsMenu from '@/features/playback/components/BulkActionsMenu'
+import BulkPlaybackMenu from '@/features/playback/components/BulkPlaybackMenu'
 import Pagination from '@/shared/ui/Pagination'
 import WaterfallLoader from '@/shared/ui/WaterfallLoader'
 import { JAV_SORT_OPTIONS, findSortOption, reverseSortValue, sortLabelParts } from '@/constants/jav'
@@ -36,8 +36,6 @@ export default function JavView({
   javItems,
   selectedJavIds,
   onToggleSelect,
-  onSelectAll,
-  onSelectPage,
   onPlayPage,
   onPlayAll,
   bulkActionBusy,
@@ -121,14 +119,12 @@ export default function JavView({
             waterfallMode={waterfallMode}
             onWaterfallModeChange={onWaterfallModeChange}
             totalItemsAction={
-              <BulkActionsMenu
-                label={zh('JAV 批量操作', 'JAV bulk actions')}
+              <BulkPlaybackMenu
+                label={zh('批量播放', 'Bulk playback')}
                 hasItems={Number(javRandomMode ? javItems.length : javTotal) > 0}
                 pageSelectable={javItems.some((item) => Number(item?.id) > 0)}
                 busy={bulkActionBusy || javLoading}
                 bulkPlaybackEnabled={bulkPlaybackEnabled}
-                onSelectAll={onSelectAll}
-                onSelectPage={onSelectPage}
                 onPlayPage={onPlayPage}
                 onPlayAll={onPlayAll}
               />

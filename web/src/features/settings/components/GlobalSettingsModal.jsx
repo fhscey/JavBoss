@@ -71,6 +71,7 @@ const PLAYER_BASIC_DEFAULTS = {
 }
 
 const BROWSER_PLAYER_DEFAULTS = {
+  resumePlayback: true,
   showHotkeyHint: true,
 }
 
@@ -86,6 +87,7 @@ export default function GlobalSettingsModal({
   desktopIntegrationEnabled = true,
   containerMode = false,
   serverOS = '',
+  appVersion = '',
   mpvEnabled = true,
   onCreateDirectory,
   onUpdateDirectory,
@@ -111,6 +113,7 @@ export default function GlobalSettingsModal({
   playerVolume,
   playerShowHotkeyHint,
   onSavePlayerBasicSettings,
+  browserPlayerResumePlayback,
   browserPlayerShowHotkeyHint,
   onSaveBrowserPlayerSettings,
   playerHotkeys,
@@ -152,6 +155,7 @@ export default function GlobalSettingsModal({
   const [playerResumePlaybackInput, setPlayerResumePlaybackInput] = useState(true)
   const [playerVolumeInput, setPlayerVolumeInput] = useState('')
   const [playerShowHotkeyHintInput, setPlayerShowHotkeyHintInput] = useState(true)
+  const [browserPlayerResumePlaybackInput, setBrowserPlayerResumePlaybackInput] = useState(true)
   const [browserPlayerShowHotkeyHintInput, setBrowserPlayerShowHotkeyHintInput] = useState(true)
   const [browserPlayerError, setBrowserPlayerError] = useState('')
   const [browserPlayerSuccess, setBrowserPlayerSuccess] = useState('')
@@ -225,6 +229,9 @@ export default function GlobalSettingsModal({
       setPlayerResumePlaybackInput(playerResumePlayback ?? PLAYER_BASIC_DEFAULTS.resumePlayback)
       setPlayerVolumeInput(String(playerVolume ?? PLAYER_BASIC_DEFAULTS.volume))
       setPlayerShowHotkeyHintInput(playerShowHotkeyHint ?? PLAYER_BASIC_DEFAULTS.showHotkeyHint)
+      setBrowserPlayerResumePlaybackInput(
+        browserPlayerResumePlayback ?? BROWSER_PLAYER_DEFAULTS.resumePlayback
+      )
       setBrowserPlayerShowHotkeyHintInput(
         browserPlayerShowHotkeyHint ?? BROWSER_PLAYER_DEFAULTS.showHotkeyHint
       )
@@ -250,6 +257,7 @@ export default function GlobalSettingsModal({
     playerResumePlayback,
     playerVolume,
     playerShowHotkeyHint,
+    browserPlayerResumePlayback,
     browserPlayerShowHotkeyHint,
     mpvEnabled,
     browserPlaybackOnly,
@@ -429,11 +437,32 @@ export default function GlobalSettingsModal({
                 />
               </span>
             </div>
-            {defaultPlayerInput === 'browser' ? (
+            {defaultPlayerInput === 'mpv' ? (
               <p className="mt-1 text-sm text-zinc-500">
                 {zh(
-                  '优先使用浏览器直接播放，格式或编码不支持时自动转码。请前往“工具”确认 FFmpeg 已安装。',
-                  'Videos play directly when supported by your browser, with automatic transcoding as a fallback. Go to Tools to check that FFmpeg is installed.'
+                  '使用 JavBoss 自带的 MPV 播放器进行播放。',
+                  'Play with the MPV player bundled with JavBoss.'
+                )}
+              </p>
+            ) : defaultPlayerInput === 'system' ? (
+              <p className="mt-1 text-sm text-zinc-500">
+                {zh(
+                  '使用系统关联的默认程序播放视频，',
+                  'Open videos with the system’s default app. '
+                )}
+                <strong className="font-semibold text-amber-700">
+                  {zh('此方式无法统计观看时长。', 'Watch time cannot be tracked. ')}
+                </strong>
+                {zh(
+                  '批量播放需将 M3U8 文件关联到支持播放列表的播放器。',
+                  'For bulk playback, associate M3U8 files with a player that supports playlists.'
+                )}
+              </p>
+            ) : defaultPlayerInput === 'browser' ? (
+              <p className="mt-1 text-sm text-zinc-500">
+                {zh(
+                  '网页播放器默认支持的编码格式有限，不支持的格式依赖服务端转码播放，请前往“工具”确认 FFmpeg 已安装。',
+                  'The web player supports a limited range of codecs by default. Unsupported formats rely on server-side transcoding for playback. Go to Tools to check that FFmpeg is installed.'
                 )}
               </p>
             ) : null}
@@ -741,6 +770,27 @@ export default function GlobalSettingsModal({
             renderDefaultPlayerSettings()
           ) : currentPlayerTab === 'browser' ? (
             <div>
+              <section className="mb-5 space-y-3">
+                <label className="flex items-center gap-3 text-sm font-semibold text-zinc-800">
+                  <input
+                    type="checkbox"
+                    checked={browserPlayerResumePlaybackInput}
+                    onChange={(e) => {
+                      setBrowserPlayerResumePlaybackInput(e.target.checked)
+                      setBrowserPlayerError('')
+                      setBrowserPlayerSuccess('')
+                    }}
+                    className="h-4 w-4 rounded"
+                  />
+                  <span>{zh('从上次结束位置播放', 'Resume From Last Position')}</span>
+                </label>
+                <p className="text-xs text-zinc-500">
+                  {zh(
+                    '在当前浏览器中记住每个视频文件的播放位置，下次打开时继续播放。',
+                    'Remember each video file’s position in this browser and resume it next time.'
+                  )}
+                </p>
+              </section>
               <section className="space-y-3">
                 <label className="flex items-center gap-3 text-sm font-semibold text-zinc-800">
                   <input
@@ -774,6 +824,7 @@ export default function GlobalSettingsModal({
                 <button
                   type="button"
                   onClick={() => {
+                    setBrowserPlayerResumePlaybackInput(BROWSER_PLAYER_DEFAULTS.resumePlayback)
                     setBrowserPlayerShowHotkeyHintInput(BROWSER_PLAYER_DEFAULTS.showHotkeyHint)
                     setBrowserPlayerError('')
                     setBrowserPlayerSuccess('')
@@ -791,6 +842,7 @@ export default function GlobalSettingsModal({
                     setSavingBrowserPlayer(true)
                     try {
                       await onSaveBrowserPlayerSettings?.({
+                        browser_player_resume_playback: browserPlayerResumePlaybackInput,
                         browser_player_show_hotkey_hint: browserPlayerShowHotkeyHintInput,
                       })
                       setBrowserPlayerSuccess(
@@ -1133,8 +1185,8 @@ export default function GlobalSettingsModal({
                 </div>
                 <p className="mt-2 max-w-2xl text-sm text-zinc-500">
                   {zh(
-                    '浏览器无法直接播放某些视频编码时，JavBoss 使用 FFmpeg 转码后播放。',
-                    'When a browser cannot play a video codec directly, JavBoss uses FFmpeg to transcode it for playback.'
+                    '网页播放器无法直接播放某些视频编码时，JavBoss 使用 FFmpeg 转码后播放。',
+                    'When the web player cannot play a video codec directly, JavBoss uses FFmpeg to transcode it for playback.'
                   )}
                 </p>
               </div>
@@ -1408,7 +1460,7 @@ export default function GlobalSettingsModal({
       contentClassName="flex h-[min(86vh,820px)] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-zinc-200 bg-[#f5f5f7] shadow-2xl"
       onClose={onClose}
     >
-      <div className="flex items-center justify-between border-b border-zinc-200 bg-white/70 px-6 py-4 backdrop-blur">
+      <div className="flex shrink-0 items-center justify-between border-b border-zinc-200 bg-white/70 px-6 py-4 backdrop-blur">
         <div>
           <h2 id="global-settings-title" className="text-lg font-semibold text-zinc-900">
             {zh('全局设置', 'Global Settings')}
@@ -1427,8 +1479,8 @@ export default function GlobalSettingsModal({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <aside className="border-b border-zinc-200 bg-white/60 p-3 backdrop-blur md:w-[280px] md:border-b-0 md:border-r">
-          <div className="flex gap-2 overflow-x-auto md:flex-col">
+        <aside className="flex min-h-0 shrink-0 flex-col border-b border-zinc-200 bg-white/60 p-3 backdrop-blur md:w-[280px] md:border-b-0 md:border-r">
+          <div className="flex min-h-0 gap-2 overflow-x-auto md:flex-1 md:flex-col md:overflow-y-auto">
             {visibleSections.map((section) => {
               const selected = currentSection === section.id
               const badgeText = section.id === 'directories' ? String(directories.length) : ''
@@ -1438,7 +1490,7 @@ export default function GlobalSettingsModal({
                   key={section.id}
                   type="button"
                   onClick={() => setActiveSection(section.id)}
-                  className={`min-w-[220px] rounded-2xl border px-4 py-3 text-left transition md:min-w-0 ${
+                  className={`min-w-[220px] shrink-0 rounded-2xl border px-4 py-3 text-left transition md:min-w-0 ${
                     selected
                       ? 'border-zinc-200 bg-white shadow-sm'
                       : 'border-transparent bg-transparent hover:border-zinc-200 hover:bg-white/80'
@@ -1459,6 +1511,10 @@ export default function GlobalSettingsModal({
                 </button>
               )
             })}
+          </div>
+          <div className="hidden shrink-0 px-4 pb-1 pt-4 text-xs text-zinc-500 md:block">
+            {zh('当前版本', 'Version')}：
+            {appVersion === 'dev' ? zh('开发版', 'Development') : appVersion || '—'}
           </div>
         </aside>
 
@@ -1486,6 +1542,10 @@ export default function GlobalSettingsModal({
             </div>
           )}
         </section>
+      </div>
+      <div className="shrink-0 border-t border-zinc-200 bg-white/60 px-6 py-3 text-xs text-zinc-500 md:hidden">
+        {zh('当前版本', 'Version')}：
+        {appVersion === 'dev' ? zh('开发版', 'Development') : appVersion || '—'}
       </div>
     </AppModal>
   )

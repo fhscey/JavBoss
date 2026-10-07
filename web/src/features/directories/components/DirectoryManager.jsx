@@ -501,8 +501,8 @@ export default function DirectoryManager({
             const autoScanDisplay =
               d.auto_scan_enabled !== false
                 ? zh(
-                    `自动扫描：每 ${autoScanIntervalMinutes} 分钟`,
-                    `Automatic scan: Every ${autoScanIntervalMinutes} min`
+                    `自动扫描间隔：${autoScanIntervalMinutes} 分钟`,
+                    `Automatic scan interval: ${autoScanIntervalMinutes} min`
                   )
                 : zh('自动扫描：已关闭', 'Automatic scan: Off')
             const working =
@@ -983,8 +983,8 @@ export default function DirectoryManager({
                 <span className="mt-0.5 block text-xs text-zinc-500">
                   {scanSettingsEnabled
                     ? zh(
-                        '按指定间隔进行目录扫描和 JAV 刮削',
-                        'Scan the directory and scrape JAV metadata at the specified interval'
+                        '按固定间隔时间定期进行目录扫描和 JAV 刮削',
+                        'Scan the directory and scrape JAV metadata at fixed intervals'
                       )
                     : zh('已关闭，可使用手动扫描', 'Off; manual scans remain available')}
                 </span>
